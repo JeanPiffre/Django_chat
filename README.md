@@ -1,7 +1,7 @@
 # Django_chat
 
 ## Virtual Environnement 
-
+```
 Package           Version
 ----------------- -------
 asgiref           3.6.0
@@ -13,5 +13,5 @@ setuptools        67.7.2
 sqlparse          0.4.4
 typing_extensions 4.5.0
 wheel             0.40.0
-
+```
 
