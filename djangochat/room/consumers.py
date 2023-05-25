@@ -9,14 +9,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = 'chat_%s' % self.room_name
 
         await self.channel_layer.group_add(
-            self.room_name,
-            self.channel_group
+            self.room_group_name,
+            self.channel_name
         )
 
-        await self.accect()
+        await self.accept()
         
     async def disconnect(self):
         await self.channel_layer.group_discard(
             self.room_group_name,
-            self.channel_group
+            self.channel_name
         )
