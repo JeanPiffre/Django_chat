@@ -30,7 +30,12 @@
 - Fonctionnalité sympatoche
 
 ### IV - Chiffrement
-
+- Arborescence
+- Methode de chiffrement
+- RSA
+    - Génération des clés
+    - Chiffrement
+    - Déchiffrement
 ---
 
 # I - Fundamentals
@@ -903,6 +908,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 Donc, nous avons créé quelques méthodes comme `save_message` , `add_user` et `remove_user` qui sont toutes des méthodes synchrones mais nous utilisons un serveur Web asynchrone, nous ajoutons donc le décorateur `sync_to_async` qui encapsule une méthode synchrone dans une méthode asynchrone.
 
 Dans les méthodes, nous effectuons simplement les opérations de base de données telles que la création d'un objet de message et l'ajout ou la suppression de l'utilisateur de la salle.
+
+---
 
 # IV - Chiffrement
 
