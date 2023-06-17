@@ -94,6 +94,7 @@ source venv/bin/activate
 pip install django
 pip install -U channels["daphne"]
 pip install channels_redis
+pip install rsa
 
 django-admin startproject backchat
 cd backchat
@@ -905,3 +906,212 @@ Dans les méthodes, nous effectuons simplement les opérations de base de donné
 
 # IV - Chiffrement
 
+## Arborescence
+
+L'aborescence est tres simple, car le projet est tres simple.
+On facilite le travail en stockant tout le internes, mais c'est pas secu, en vrai il faut bien tout séparer, tout chiffré et éviter de tout stocké au meme endroit et encore moins sur le meme serveur (car la c'est sur la meme vm qui joue le role de serveur).
+
+pour ca on met en place un code python qui créer les clés, et organise tout dasn des fichiers et dossiers adéquat.
+
+`crypto/crypto_arbo.py`
+```python
+import os
+
+def create_folder():
+    private_key_dir = "privateKey"
+    if not os.path.exists(private_key_dir):
+        os.makedirs(private_key_dir)
+        print(f"Dossier '{private_key_dir}' créé.")
+
+    public_key_dir = "publicKey"
+    if not os.path.exists(public_key_dir):
+        os.makedirs(public_key_dir)
+        print(f"Dossier '{public_key_dir}' créé.")
+
+def create_files(filename):
+    private_key_file = os.path.join("privateKey", f"{filename}.pem")
+    if not os.path.exists(private_key_file):
+        open(private_key_file, "a").close()
+
+    public_key_file = os.path.join("publicKey", f"{filename}.pem")
+    if not os.path.exists(public_key_file):
+        open(public_key_file, "a").close()
+```
+
+L'aborescence est réalisé lors de la création d'un compte.
+`accounts/views.py`
+```python
+from crypto import crypto_arbo
+        ...
+        ...
+        if form.is_valid():
+            ...
+            ...
+            crypto_arbo.create_folder()
+            crypto_arbo.create_files(username)
+            crypto_rsa.generate_keys(username)
+            ...
+            ...
+```
+
+## Methode de chiffrement
+
+RSA (Rivest-Shamir-Adleman) est un algorithme de chiffrement asymétrique largement utilisé dans le domaine de la cryptographie. 
+Il repose sur le principe de la cryptographie à clé publique, où une paire de clés est utilisée : une clé publique pour le chiffrement des données et une clé privée pour le déchiffrement correspondant.
+
+Il est composé de 3 grandes étapes :
+- Génération des clés : Le processus commence par la génération d'une paire de clés, composée d'une clé publique et d'une clé privée. La clé publique est partagée publiquement tandis que la clé privée est gardée secrète.
+
+- Chiffrement : Pour chiffrer un message, le destinataire utilise la clé publique du destinataire pour transformer le message en un texte chiffré. Ce texte chiffré ne peut être déchiffré qu'à l'aide de la clé privée correspondante.
+
+- Déchiffrement : Le destinataire utilise sa clé privée pour déchiffrer le texte chiffré et récupérer le message d'origine.
+
+Le RSA offre des avantages significatifs dans le cadre du chat. 
+
+Grâce à la cryptographie asymétrique, il permet le partage sécurisé de clés publiques pour chiffrer les messages, garantissant ainsi la confidentialité des communications. De plus, RSA permet de signer numériquement les messages, offrant ainsi une vérification d'authenticité et d'intégrité. En utilisant RSA pour l'échange initial de clés symétriques, un chat peut bénéficier d'un échange sécurisé de clés, renforçant davantage la confidentialité et la sécurité des conversations.
+
+
+## RSA
+
+### Génération des clés
+
+La génération des clé est réalisé avec la libraire `rsa`.
+on créer la clé privé et public et on l'insert dans les fichiers créer au préalable afin de les stocker.
+
+`crypto/crypto_rsa.py`
+```python
+import rsa
+import os
+
+def generate_keys(filename):
+    publicKey, privateKey = rsa.newkeys(512)
+
+    public_key_file = os.path.join("publicKey", f"{filename}.pem")
+    private_key_file = os.path.join("privateKey", f"{filename}.pem")
+
+    with open(public_key_file, "wb") as file:
+        file.write(publicKey.save_pkcs1())
+
+    with open(private_key_file, "wb") as file:
+        file.write(privateKey.save_pkcs1())
+```
+
+La génération des clées est réalisé lors de la création d'un compte.
+`accounts/views.py`
+```python
+from crypto import crypto_rsa
+        ...
+        ...
+        if form.is_valid():
+            ...
+            ...
+            crypto_rsa.generate_keys(username)
+            ...
+            ...
+```
+
+### Chiffrement
+
+On ajoute la fonction qui crypte un message en utilisant a clé privé.
+
+`crypto/crypto_rsa.py`
+```python
+import rsa
+import os
+
+...
+...
+
+def encrypt(message, public_key_filename):
+    public_key_file = os.path.join("publicKey", f"{public_key_filename}.pem")
+
+    with open(public_key_file, "rb") as file:
+        publicKey = rsa.PublicKey.load_pkcs1(file.read())
+
+    encMessage = rsa.encrypt(message.encode(), publicKey)
+
+    return encMessage
+```
+
+Le chiffrement dois etre placé avant l'affichage du message sur le htmx/html et avant l'enregistrement du message dans la bdd.
+On sauvegarde le message lorsque celui-ci est chiffré.
+
+`chat/consumers.py`
+```python
+from crypto import crypto_rsa
+
+...
+...
+
+async def receive(self, text_data):
+        ...
+        ...
+
+        encrypted_message = crypto_rsa.encrypt(message, username)
+        await self.save_message(room, user, encrypted_message)
+
+        await self.channel_layer.group_send(
+            self.room_group_name, 
+            {
+                "type": "chat_message",
+                "message": encrypted_message,
+                "username": username,
+            }
+        )
+
+        ...
+        ...
+```
+
+### Déchiffrement
+
+On ajoute la fonction qui decrypte un message en utilisant a clé public.
+
+`crypto/crypto_rsa.py`
+```python
+import rsa
+import os
+
+...
+...
+
+def decrypt(encMessage, private_key_filename):
+    private_key_file = os.path.join("privateKey", f"{private_key_filename}.pem")
+
+    with open(private_key_file, "rb") as file:
+        privateKey = rsa.PrivateKey.load_pkcs1(file.read())
+
+    decMessage = rsa.decrypt(encMessage, privateKey).decode()
+
+    return decMessage
+```
+
+Le chiffrement dois etre placé avant l'affichage du message sur le htmx/html **MAIS APRES L'AVOIR RECU !**
+
+`chat/consumers.py`
+```python
+from crypto import crypto_rsa
+
+...
+...
+
+async def chat_message(self, event):
+        
+        ...
+        ...
+
+        decrypted_message = crypto_rsa.decrypt(message, username)
+
+        message_html = f"<div hx-swap-oob='beforeend:#messages'><p><b>{username}</b>: {decrypted_message}</p></div>"
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "message": message_html,
+                    "username": username
+                }
+            )
+        )
+        
+        ...
+        ...
+```
