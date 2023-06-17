@@ -5,6 +5,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from chat.models import Room, Message
 
+from crypto import crypto_rsa
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -33,13 +35,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         username = user.username
         room = self.room_name
 
-        #await self.save_message(room, user, message)
+        encrypted_message = crypto_rsa.encrypt(message, username)
+        await self.save_message(room, user, encrypted_message)
 
         await self.channel_layer.group_send(
             self.room_group_name, 
             {
                 "type": "chat_message",
-                "message": message,
+                "message": encrypted_message,
                 #"room": room,
                 "username": username,
             }
@@ -50,8 +53,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         #room = event["room"]
         username = event["username"]
 
+        decrypted_message = crypto_rsa.decrypt(message, username)
 
-        message_html = f"<div hx-swap-oob='beforeend:#messages'><p><b>{username}</b>: {message}</p></div>"
+        message_html = f"<div hx-swap-oob='beforeend:#messages'><p><b>{username}</b>: {decrypted_message}</p></div>"
         await self.send(
             text_data=json.dumps(
                 {
