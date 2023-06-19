@@ -8,6 +8,7 @@
 - Activation de l'environnement virtuel
 - Installation des dépendances
 - Création du projet Django
+- Lancement du projet
 
 ### II - Authentification
 - Création de l'app accounts
@@ -103,6 +104,12 @@ pip install rsa
 
 django-admin startproject backchat
 cd backchat
+```
+
+### Lancement du projet
+```
+python manage.py migrate
+python manage.py runserver
 ```
 
 ---
